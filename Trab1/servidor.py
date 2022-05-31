@@ -5,8 +5,8 @@ import threading
 import json
 
 from comuns import *
-from payloads_servidor import *
-from error_messages import *
+from payloads import *
+from messages import *
 
 # define a localizacao do servidor
 HOST = ''  # vazio indica que podera receber requisicoes a partir de qq interface de rede da maquina
@@ -70,20 +70,17 @@ def identificaOperacao(clisock, conteudo, endr):
     elif(conteudo["operacao"] == "get_lista"):
         operacaoGetLista(clisock)
     else:
-        print(ERROR_INVALID_PAYLOAD)
+        imprime(ERROR_INVALID_PAYLOAD)
 
 
 def atendeRequisicoes(clisock: socket.socket, endr: str):
-    '''Recebe mensagens e as envia de volta para o cliente (ate o cliente finalizar)
-    Entrada: socket da conexao e endereco do cliente
-    Saida: '''
     while True:
         # recebe dados do cliente
         data = clisock.recv(1024)
 
         if not data:  # dados vazios: cliente encerrou
             clisock.close()  # encerra a conexao com o cliente
-            print(f"<- usuário se desconectou {endr}")
+            imprime(f"<- usuário se desconectou {endr}")
             return
 
         conteudo = json.loads(data)
@@ -95,14 +92,14 @@ def atendeRequisicoes(clisock: socket.socket, endr: str):
 def main():
     '''Inicializa e implementa o loop principal (infinito) do servidor'''
     conexoes = []  # armazena os processos criados para fazer join
-    sock = iniciaServidor(HOST, PORT, entradas)
-    print("Pronto para receber conexoes...")
+    servidorCentral = Servidor(HOST, PORT, entradas)
+    imprime("Pronto para receber conexoes...")
     while True:
         leitura, _, _ = select.select(entradas, [], [])
         for pronto in leitura:
-            if pronto == sock:  # pedido novo de conexao
-                clisock, endr = aceitaConexao(sock)
-                print(f"-> usuário se conectou {endr}")
+            if pronto == servidorCentral.sock:  # pedido novo de conexao
+                clisock, endr = servidorCentral.aceitaConexao()
+                imprime(f"-> usuário se conectou {endr}")
                 # cria novo processo para atender o cliente
                 cliente = threading.Thread(
                     target=atendeRequisicoes, args=(clisock, endr))
@@ -112,13 +109,14 @@ def main():
             elif pronto == sys.stdin:  # entrada padrao
                 cmd = input()
                 if cmd == 'exit':  # solicitacao de finalizacao do servidor
-                    print('Esperando os conexoes se desconectarem...')
+                    imprime('Esperando os conexoes se desconectarem...')
                     for c in conexoes:  # aguarda todos os processos terminarem
                         c.join()
-                    sock.close()
-                    sys.exit()
+                    servidorCentral.encerra()
+                    return
                 else:
                     imprimeListaFormatada(clientes)
 
 
-main()
+if __name__ == '__main__':
+    main()
