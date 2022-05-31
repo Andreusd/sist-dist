@@ -1,19 +1,26 @@
 import sys
 import socket
 
+from cores import *
+
+
+def imprime(texto: str, cor: str = COR_PADRAO):
+    print(cor + texto)
+
 
 def imprimeDebug(msg: str) -> None:
     if (len(sys.argv) > 1 and sys.argv[1] == "debug"):
-        print(msg)
+        imprime(msg)
 
 
 def imprimeListaFormatada(listaUsuarios: dict) -> None:
-    print(f"Clientes conectados".center(40, "-"))
+    imprime(f"Clientes conectados".center(40, "-"))
     if len(listaUsuarios) < 1:
-        print("Nenhum cliente conectado!")
+        imprime("Nenhum cliente conectado!")
     for indice, (nomeOutro, infoOutro) in enumerate(listaUsuarios.items()):
-        print(f"[{indice}]: {nomeOutro} {infoOutro['Endereco'],infoOutro['Porta']}")
-    print(f"".center(40, "-"))
+        imprime(
+            f"[{indice}]: {nomeOutro} {infoOutro['Endereco'],infoOutro['Porta']}")
+    imprime(f"".center(40, "-"))
 
 
 def iniciaServidor(host: str, porta: int, entradas: list) -> socket.socket:

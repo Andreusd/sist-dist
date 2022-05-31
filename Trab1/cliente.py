@@ -7,7 +7,8 @@ import sys
 
 from comuns import *
 from payloads_cliente import *
-from errors import *
+from error_messages import *
+
 
 HOST_SERVIDOR = 'localhost'  # maquina onde esta o servidor
 PORT_SERVIDOR = 10000       # porta que o servidor esta escutando
@@ -16,7 +17,8 @@ HOST_LOCAL = ''
 PORT_LOCAL = random.randrange(5000, 10000)
 
 entradas = [sys.stdin]
-clientes = {}
+clientes = {}  # lista de clientes fornecida pelo servidor
+peerSockets = {}  # mapa de usuario para soquete
 
 
 def iniciaCliente(host: str, porta: int):
@@ -47,9 +49,10 @@ def salvaMensagem(pacote: dict, nomeMeu: str):
         arquivo.write(payload)
 
 
-def iniciaConversa(cliSock: socket, nomeMeu: str):
+def escutaPeers(cliSock: socket):
+    cor = random.choice(cores)
     while True:
-        leitura, _, _ = select.select((sys.stdin, cliSock), [], [])
+        leitura, _, _ = select.select((cliSock, sys.stdin), [], [])
         for pronto in leitura:
             if pronto == cliSock:
                 data = cliSock.recv(1024)
@@ -57,55 +60,33 @@ def iniciaConversa(cliSock: socket, nomeMeu: str):
                     cliSock.close()  # encerra a conexao com o cliente
                     return
                 pacote = json.loads(str(data, encoding='utf-8'))
-                salvaMensagem(pacote, nomeMeu)
-                print(pacote["username"] + ': '+pacote["mensagem"])
-            elif pronto == sys.stdin:
-                mensagem = input()
-                if mensagem == 'leave':
-                    cliSock.close()
-                    return
-                pacote = Mensagem(nomeMeu, mensagem)
-                salvaMensagem(pacote, nomeMeu)
-                payload = json.dumps(pacote)
-                cliSock.sendall(payload.encode("utf-8"))
-
-
-def anunciaConversa(cliSock: socket.socket, nomeMeu: str) -> None:
-    print(F"Você está conversando!".center(40, "-"))
-    iniciaConversa(cliSock, nomeMeu)
-    print(F"Você saiu da conversa!".center(40, "-"))
+                imprime(pacote["username"] + ' -> vc: ' +
+                        pacote["mensagem"], cor)
+            elif pronto == sys.stdin and input() == "logoff":
+                cliSock.close()
+                return
 
 
 def imprimeErroSeHouver(resposta: dict):
     if resposta["status"] == 400:
-        print(f"Erro! {resposta['mensagem']}")
+        imprime(f"Erro! {resposta['mensagem']}")
 
 
-def enviaPayload(sock: socket.socket, payload: str):
-    sock.sendall(payload.encode('utf-8'))
-
-    payload_resposta = str(sock.recv(1024), encoding='utf-8')
-    resposta = json.loads(payload_resposta)
-
-    imprimeErroSeHouver(resposta)
-
-    imprimeDebug(resposta)
-    return resposta
+def enviaPacote(sock: socket.socket, payload: str, comResposta: bool = False):
+    sock.sendall(json.dumps(payload).encode('utf-8'))
+    return json.loads(str(sock.recv(1024), encoding='utf-8')) if comResposta else None
 
 
 def operacaoLogin(sock: socket.socket, username: str):
-    payload = json.dumps(Login(username, PORT_LOCAL))
-    return enviaPayload(sock, payload)
+    return enviaPacote(sock, Login(username, PORT_LOCAL), True)
 
 
 def operacaoLogoff(sock: socket.socket, username: str):
-    payload = json.dumps(Logoff(username))
-    return enviaPayload(sock, payload)
+    return enviaPacote(sock, Logoff(username), True)
 
 
 def operacaoGetLista(sock: socket.socket):
-    payload = json.dumps(GetLista)
-    return enviaPayload(sock, payload)
+    return enviaPacote(sock, GetLista, True)
 
 
 def atualizaLista(sock: socket.socket) -> dict:
@@ -114,35 +95,31 @@ def atualizaLista(sock: socket.socket) -> dict:
     imprimeListaFormatada(clientes)
 
 
-def conectaComOutroCliente(nomeOutro, nomeMeu):
+def conectaComPeer(mensagem: str, nomeOutro: str, nomeMeu: str):
     imprimeDebug("quero falar com alguem!")
-
-    if(nomeOutro == nomeMeu):
-        print("você não pode falar consigo mesmo!")
-        return
 
     endrUser, portUser = clientes[nomeOutro].values()
 
-    try:
-        cliSock = iniciaCliente(endrUser, portUser)
-        anunciaConversa(cliSock, nomeMeu)
-    except ConnectionRefusedError:
-        print(
-            ERROR_RECIPIENT_DISCONECTED)
-
-
-def descobreNomeRemetente(sock: socket.socket, endrOutro: str) -> str:
-    atualizaLista(sock)
-    print(
-        list(filter(lambda dadosOutro: print(dadosOutro[1]["Endereco"], endrOutro[0], dadosOutro[1]["Porta"], endrOutro[1]), clientes.items())))
-    print(
-        list(filter(lambda dadosOutro: dadosOutro[1]["Endereco"] == endrOutro[0] and dadosOutro[1]["Porta"] == endrOutro[1], clientes.items())))
-    return ''
+    while True:
+        try:
+            cliSock = peerSockets[nomeOutro] if nomeOutro in peerSockets else iniciaCliente(
+                endrUser, portUser)
+        except ConnectionRefusedError:  # 1o caso: o destinatário se desconectou
+            print("1o caso: o destinatário se desconectou")
+            imprime(ERROR_RECIPIENT_DISCONECTED)
+            break
+        try:
+            enviaPacote(cliSock, Mensagem(nomeMeu, mensagem))
+            peerSockets[nomeOutro] = cliSock
+            break
+        except ConnectionRefusedError:  # 2o caso: um sockete que usamos anteriormente não é mais válido
+            print("2o caso: um sockete que usamos anteriormente não é mais válido")
+            peerSockets.pop(nomeOutro)
 
 
 def escolheNome(sock: socket.socket):
     msgUsername = "Entre com o seu username: "
-    nomeMeu = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] != "debug" else input(
+    nomeMeu = sys.argv[1] if len(sys.argv) > 1 else input(
         msgUsername)
     while True:
         resposta = operacaoLogin(sock, nomeMeu)
@@ -153,26 +130,35 @@ def escolheNome(sock: socket.socket):
 
 
 def escolheEntrada(centralSock: socket.socket, hostSock: socket.socket, nomeMeu: str):
+    talkingTo = None
     while True:
         leitura, _, _ = select.select(entradas, [], [])
         for pronto in leitura:
             if pronto == hostSock:  # pedido novo de conexao
                 imprimeDebug("alguem quer falar comigo!")
                 cliSock, _ = aceitaConexao(hostSock)
-                anunciaConversa(cliSock, nomeMeu)
+                peer = threading.Thread(
+                    target=escutaPeers, args=(cliSock,))
+                peer.start()
             elif pronto == sys.stdin:  # entrada padrao
                 comando = input()
                 if comando == "logoff":
                     resposta = operacaoLogoff(centralSock, nomeMeu)
                     centralSock.close()
+                    hostSock.close()
                     return
                 elif comando == "lista":
-                    pass
+                    atualizaLista(centralSock)
+                elif comando == nomeMeu:
+                    imprime(ERROR_RECIPIENT_IS_USER)
                 elif comando in clientes:
-                    conectaComOutroCliente(comando, nomeMeu)
+                    talkingTo = comando
+                    imprime(
+                        f"Você está falando com {talkingTo}".center(40, "-"))
+                elif talkingTo:
+                    conectaComPeer(comando, talkingTo, nomeMeu)
                 else:
-                    print(ERROR_USER_NOT_FOUND)
-            atualizaLista(centralSock)
+                    imprime(ERROR_USER_NOT_FOUND)
 
 
 def fazRequisicoes(centralSock: socket.socket, hostSock: socket.socket):

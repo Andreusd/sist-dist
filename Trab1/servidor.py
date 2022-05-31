@@ -6,7 +6,7 @@ import json
 
 from comuns import *
 from payloads_servidor import *
-from errors import *
+from error_messages import *
 
 # define a localizacao do servidor
 HOST = ''  # vazio indica que podera receber requisicoes a partir de qq interface de rede da maquina

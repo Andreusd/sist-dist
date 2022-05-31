@@ -1,5 +1,5 @@
-def Login(username, porta): return {"operacao": "login",
-                                    "username": username, "porta": porta}
+def Login(username: str, porta: int) -> dict: return {"operacao": "login",
+                                                      "username": username, "porta": porta}
 
 
 def Logoff(username): return {"operacao": "logoff",
