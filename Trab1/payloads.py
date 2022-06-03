@@ -1,40 +1,76 @@
+import json
+
+
+class Payload:
+    def toJson(self):
+        return json.dumps(vars(self))
+
 # Cliente
 
-def Login(username: str, porta: int) -> dict: return {"operacao": "login",
-                                                      "username": username, "porta": porta}
+
+class Login(Payload):
+    def __init__(self, username: str, porta: int):
+        self.operacao = "login"
+        self.username = username
+        self.porta = porta
 
 
-def Logoff(username): return {"operacao": "logoff",
-                              "username": username}
+class Logoff(Payload):
+    def __init__(self, username: str):
+        self.operacao = "logoff"
+        self.username = username
 
 
-GetLista = {"operacao": "get_lista"}
+class GetLista(Payload):
+    def __init__(self):
+        self.operacao = "get_lista"
 
 
-def Mensagem(username, mensagem): return {
-    "username": username, "mensagem": mensagem}
+class Mensagem(Payload):
+    def __init__(self, username, mensagem):
+        self.username = username
+        self.mensagem = mensagem
 
 # Servidor
 
 
-LoginSucess = {"operacao": "login",
-               "status": 200, "mensagem": "Login com sucesso"}
+class LoginSucess(Payload):
+    def __init__(self):
+        self.operacao = "login"
+        self.status = 200
+        self.mensagem = "Login com sucesso"
 
 
-def LoginError(mensagemErro): return {'operacao': 'login',
-                                      'status': 400, 'mensagem': mensagemErro}
+class LoginError(Payload):
+    def __init__(self, mensagemErro):
+        self.operacao = "login"
+        self.status = 400
+        self.mensagem = mensagemErro
 
 
-LogoffSucess = {"operacao": "logoff",
-                "status": 200, "mensagem": "Logoff com sucesso"}
-
-LogoffError = {"operacao": "logoff",
-               "status": 400, "mensagem": "Erro no Logoff"}
-
-
-def GetListaSucess(listaClientes): return {"operacao": "get_lista",
-                                           "status": 200, "clientes": listaClientes}
+class LogoffSucess(Payload):
+    def __init__(self):
+        self.operacao = "logoff"
+        self.status = 200
+        self.mensagem = "Logoff com sucesso"
 
 
-GetListaError = {"operacao": "get_lista",
-                 "status": 400, "mensagem": "Erro ao obter a lista"}
+class LogoffError(Payload):
+    def __init__(self):
+        self.operacao = "logoff"
+        self.status = 400
+        self.mensagem = "Erro no Logoff"
+
+
+class GetListaSucess(Payload):
+    def __init__(self, listaClientes):
+        self.operacao = "get_lista"
+        self.status = 200
+        self.clientes = listaClientes
+
+
+class GetListaError(Payload):
+    def __init__(self):
+        self.operacao = "get_lista"
+        self.status = 400
+        self.clientes = "Erro ao obter a lista"

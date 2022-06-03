@@ -2,7 +2,7 @@ import socket
 import json
 import random
 import select
-import threading
+import multiprocessing
 import sys
 
 from comuns import *
@@ -16,12 +16,12 @@ PORT_SERVIDOR = 10000       # porta que o servidor esta escutando
 HOST_LOCAL = ''
 PORT_LOCAL = random.randrange(5000, 10000)
 
-entradas = [sys.stdin]
+
 clientes = {}  # lista de clientes fornecida pelo servidor
 peerSockets = {}  # mapa de usuario para soquete
 
 
-class Cliente:
+class Cliente(Conexao):
     def __init__(self, host: str, porta: int):
         # cria socket
         # Internet (IPv4 + TCP)
@@ -31,11 +31,11 @@ class Cliente:
 
         self.sock = sock
 
-    def enviaPacote(self, payload: dict, comResposta: bool = False):
-        imprimeDebug(json.dumps(payload))
-        self.sock.sendall(json.dumps(payload).encode('utf-8'))
+    def enviaPacote(self, payload: Payload, comResposta: bool = False):
+        self.envia(payload.toJson())
         if comResposta:
-            resposta = json.loads(str(self.sock.recv(1024), encoding='utf-8'))
+            conteudo = self.recebe()
+            resposta = json.loads(conteudo)
             if resposta["status"] == 400:
                 imprimeErro(f"Erro! {resposta['mensagem']}")
             return resposta
@@ -52,7 +52,7 @@ class ClienteCentral(Cliente):
         return self.enviaPacote(Logoff(self.username), True)
 
     def pedeLista(self):
-        return self.enviaPacote(GetLista, True)
+        return self.enviaPacote(GetLista(), True)
 
     def atualizaLista(self):
         global clientes
@@ -129,35 +129,43 @@ def salvaMensagem(pacote: dict, nomeMeu: str):
         arquivo.write(payload)
 
 
-def escutaPeers(cliSock: socket):
+def escutaPeers(conexao):
     cor = random.choice(cores)
     while True:
-        data = cliSock.recv(1024)
+        data = conexao.recebe()
         if not data:  # dados vazios: cliente encerrou
-            cliSock.close()  # encerra a conexao com o cliente
+            conexao.encerra()  # encerra a conexao com o cliente
             return
-        pacote = json.loads(str(data, encoding='utf-8'))
+        pacote = json.loads(data)
         imprime(pacote["username"] + ' -> vc: ' +
                 pacote["mensagem"], cor)
 
 
 def escolheEntrada(clienteCentral: ClienteCentral, servidorLocal: Servidor):
+    processes = []
+    listeningSockets = []
     talkingTo = None
     while True:
-        leitura, _, _ = select.select(entradas, [], [])
+        leitura, _, _ = select.select((sys.stdin, servidorLocal.sock), (), ())
         for pronto in leitura:
             if pronto == servidorLocal.sock:  # pedido novo de conexao
                 imprimeDebug("alguem quer falar comigo!")
                 cliSock, _ = servidorLocal.aceitaConexao()
-                peer = threading.Thread(
-                    target=escutaPeers, args=(cliSock,))
+                conexao = Conexao(cliSock)
+                peer = multiprocessing.Process(
+                    target=escutaPeers, args=(conexao,))
                 peer.start()
+                processes.append(peer)
+                listeningSockets.append(cliSock)
             elif pronto == sys.stdin:  # entrada padrao
                 comando = input()
                 if comando == "logoff":
                     resposta = clienteCentral.fazLogoff()
                     clienteCentral.encerra()
                     servidorLocal.encerra()
+                    for p, s in zip(processes, listeningSockets):
+                        p.terminate()
+                        s.close()
                     sys.exit()
                 elif comando == "lista":
                     clienteCentral.atualizaLista()
@@ -185,7 +193,7 @@ def main():
         imprimeErro(ERROR_SERVER_NOT_RUNNING)
         return
 
-    servidorLocal = Servidor(HOST_LOCAL, PORT_LOCAL, entradas)
+    servidorLocal = Servidor(HOST_LOCAL, PORT_LOCAL)
 
     clienteCentral.escolheNome()
 

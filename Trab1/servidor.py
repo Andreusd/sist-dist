@@ -12,97 +12,96 @@ from messages import *
 HOST = ''  # vazio indica que podera receber requisicoes a partir de qq interface de rede da maquina
 PORT = 10000  # porta de acesso
 
-# define a lista de I/O de interesse (jah inclui a entrada padrao)
-entradas = [sys.stdin]
 # armazena clientes conectados e seu endereço e porta
 clientes = {}
 
 lock = threading.Lock()
 
 
-def adicionaCliente(nome, dados):
-    lock.acquire()
-    clientes[nome] = dados
-    lock.release()
+class ConexaoCliente(Conexao):
+    def __init__(self, sock, endrCliente):
+        super().__init__(sock)
+        self.endrCliente = endrCliente
+
+    def adicionaCliente(self, nome, dados):
+        lock.acquire()
+        clientes[nome] = dados
+        lock.release()
+
+    def removeCliente(self, chave):
+        lock.acquire()
+        del clientes[chave]
+        lock.release()
+
+    def enviaPayload(self, payload: Payload):
+        self.envia(payload.toJson())
+        imprimeDebug(f"-> {payload}")
+
+    def operacaoLogin(self, conteudo):
+        if len(conteudo["username"]) < 3:
+            self.enviaPayload(LoginError(
+                ERROR_MIN_LENGTH))
+        elif conteudo["username"] in clientes:
+            self.enviaPayload(LoginError(
+                ERROR_USERNAME_TAKEN))
+        else:
+            self.adicionaCliente(conteudo["username"], {
+                "Endereco": self.endrCliente[0], "Porta": conteudo["porta"]})
+            self.enviaPayload(LoginSucess())
+
+    def operacaoLogoff(self, conteudo):
+        if conteudo["username"] in clientes:
+            self.removeCliente(conteudo["username"])
+            self.enviaPayload(LogoffSucess())
+        else:
+            self.enviaPayload(LogoffError())
+
+    def operacaoGetLista(self):
+        self.enviaPayload(GetListaSucess(clientes))
+
+    def identificaOperacao(self, conteudo):
+        if conteudo["operacao"] == "login":
+            self.operacaoLogin(conteudo)
+        elif(conteudo["operacao"] == "logoff"):
+            self.operacaoLogoff(conteudo)
+        elif(conteudo["operacao"] == "get_lista"):
+            self.operacaoGetLista()
+        else:
+            imprime(ERROR_INVALID_PAYLOAD)
 
 
-def removeCliente(chave):
-    lock.acquire()
-    del clientes[chave]
-    lock.release()
-
-
-def enviaPayload(sock: socket.socket, payload: dict):
-    sock.sendall(json.dumps(payload).encode('utf-8'))
-    imprimeDebug(f"-> {payload}")
-
-
-def operacaoLogin(clisock, conteudo, endr):
-    if len(conteudo["username"]) < 3:
-        enviaPayload(clisock, LoginError(
-            ERROR_MIN_LENGTH))
-    elif conteudo["username"] in clientes:
-        enviaPayload(clisock, LoginError(
-            ERROR_USERNAME_TAKEN))
-    else:
-        adicionaCliente(conteudo["username"], {
-            "Endereco": endr[0], "Porta": conteudo["porta"]})
-        enviaPayload(clisock, LoginSucess)
-
-
-def operacaoLogoff(clisock, conteudo):
-    if conteudo["username"] in clientes:
-        removeCliente(conteudo["username"])
-        enviaPayload(clisock, LogoffSucess)
-    else:
-        enviaPayload(clisock, LogoffError)
-
-
-def operacaoGetLista(clisock):
-    enviaPayload(clisock, GetListaSucess(clientes))
-
-
-def identificaOperacao(clisock, conteudo, endr):
-    if conteudo["operacao"] == "login":
-        operacaoLogin(clisock, conteudo, endr)
-    elif(conteudo["operacao"] == "logoff"):
-        operacaoLogoff(clisock, conteudo)
-    elif(conteudo["operacao"] == "get_lista"):
-        operacaoGetLista(clisock)
-    else:
-        imprime(ERROR_INVALID_PAYLOAD)
-
-
-def atendeRequisicoes(clisock: socket.socket, endr: str):
+def atendeRequisicoes(conexaoCliente):
     while True:
         # recebe dados do cliente
-        data = clisock.recv(1024)
+        data = conexaoCliente.recebe()
 
         if not data:  # dados vazios: cliente encerrou
-            clisock.close()  # encerra a conexao com o cliente
-            imprime(f"<- usuário se desconectou {endr}")
+            conexaoCliente.encerra()  # encerra a conexao com o cliente
+            imprime(f"<- usuário se desconectou {conexaoCliente.endrCliente}")
             return
 
         conteudo = json.loads(data)
         imprimeDebug(f"<- {conteudo}")
 
-        identificaOperacao(clisock, conteudo, endr)
+        conexaoCliente.identificaOperacao(conteudo)
 
 
 def main():
     '''Inicializa e implementa o loop principal (infinito) do servidor'''
     conexoes = []  # armazena os processos criados para fazer join
-    servidorCentral = Servidor(HOST, PORT, entradas)
+    servidorCentral = Servidor(HOST, PORT)
     imprime("Pronto para receber conexoes...")
     while True:
-        leitura, _, _ = select.select(entradas, [], [])
+        leitura, _, _ = select.select(
+            (sys.stdin, servidorCentral.sock), (), ())
         for pronto in leitura:
             if pronto == servidorCentral.sock:  # pedido novo de conexao
-                clisock, endr = servidorCentral.aceitaConexao()
+                cliSock, endr = servidorCentral.aceitaConexao()
                 imprime(f"-> usuário se conectou {endr}")
                 # cria novo processo para atender o cliente
+                conexaoCliente = ConexaoCliente(cliSock, endr)
                 cliente = threading.Thread(
-                    target=atendeRequisicoes, args=(clisock, endr))
+                    target=atendeRequisicoes, args=(conexaoCliente,))
                 cliente.start()
                 # armazena a referencia da thread para usar com join()
                 conexoes.append(cliente)

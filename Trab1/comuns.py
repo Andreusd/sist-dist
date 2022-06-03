@@ -3,9 +3,32 @@ import socket
 
 from cores import *
 
+TAMANHO_MSG = 2
 
-class Servidor:
-    def __init__(self, host: str, porta: int, entradas: list):
+
+class Conexao:
+    def __init__(self, sock: socket.socket):
+        self.sock = sock
+
+    def recebe(self):
+        tamanho = self.sock.recv(TAMANHO_MSG)
+        if not tamanho:  # dados vazios: cliente encerrou
+            return
+        conteudo = self.sock.recv(int.from_bytes(tamanho, 'big'))
+        return str(conteudo, encoding='utf-8')
+
+    def envia(self, mensagem: str):
+        conteudo = mensagem.encode("utf-8")
+        tamanho = len(conteudo).to_bytes(TAMANHO_MSG, 'big')
+        self.sock.sendall(tamanho)
+        self.sock.sendall(conteudo)
+
+    def encerra(self):
+        self.sock.close()
+
+
+class Servidor(Conexao):
+    def __init__(self, host: str, porta: int):
         # cria o socket
         # Internet( IPv4 + TCP)
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -22,13 +45,7 @@ class Servidor:
         # configura o socket para o modo nao-bloqueante
         sock.setblocking(False)
 
-        # inclui o socket principal na lista de entradas de interesse
-        entradas.append(sock)
-
         self.sock = sock
-
-    def encerra(self):
-        self.sock.close()
 
     def aceitaConexao(self):
         # estabelece conexao com o proximo cliente
