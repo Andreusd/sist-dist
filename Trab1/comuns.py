@@ -3,30 +3,37 @@ import socket
 
 from cores import *
 
+# define o tamanho em bytes do espaço alocado para receber o tamanho da mensagem
 TAMANHO_MSG = 2
 
 
-class Conexao:
+class Conexao:  # classe com operacoes comuns a todas as conexoes
     def __init__(self, sock: socket.socket):
         self.sock = sock
 
-    def recebe(self):
+    def recebe(self):  # recebe mensagem de uma conexao
+        # recebe um tamanho fixo de bytes que vao indicar o tamanho da mensagem
         tamanho = self.sock.recv(TAMANHO_MSG)
-        if not tamanho:  # dados vazios: cliente encerrou
+        if not tamanho:  # dados vazios: contraparte encerrou
             return
+        # recebe a quantidade de bytes recebida anteriormente indicando o tamanho total da mensagem
         conteudo = self.sock.recv(int.from_bytes(tamanho, 'big'))
+        # transforma a cadeia de bytes em string e retorna
         return str(conteudo, encoding='utf-8')
 
-    def envia(self, mensagem: str):
+    def envia(self, mensagem: str):  # envia uma mensagem a uma conexao
+        # transforma a string da mensagem em cadeia de bytes
         conteudo = mensagem.encode("utf-8")
+        # define o tamanho total da mensagem e converte para bytes
         tamanho = len(conteudo).to_bytes(TAMANHO_MSG, 'big')
-        self.sock.sendall(tamanho)
-        self.sock.sendall(conteudo)
+        self.sock.sendall(tamanho)  # envia o tamanho da mensagem
+        self.sock.sendall(conteudo)  # envia a mensagem
 
     def encerra(self):
-        self.sock.close()
+        self.sock.close()  # encerra a conexao
 
 
+# classe que define operações do lado do Servidor (tanto central quando peer)
 class Servidor(Conexao):
     def __init__(self, host: str, porta: int):
         # cria o socket
@@ -52,20 +59,18 @@ class Servidor(Conexao):
         return self.sock.accept()
 
 
+# abstracao para imprimir texto na tela
 def imprime(texto: str, cor: str = COR_PADRAO, destaque: bool = False):
     colorido = cor + texto + COR_PADRAO
     print(colorido.center(60, "-") if destaque else colorido)
 
 
+# abstracao para imprimir um erro (em vermelho)
 def imprimeErro(texto: str):
     imprime(texto, cor=cores[0])
 
 
-def imprimeDebug(msg: str) -> None:
-    if (len(sys.argv) > 1 and sys.argv[1] == "debug"):
-        imprime(msg)
-
-
+# imprime a lista de usuários conectados (tanto do lado do servidor central quanto do peer)
 def imprimeListaFormatada(listaUsuarios: dict) -> None:
     imprime(f"Clientes conectados", destaque=True)
     if len(listaUsuarios) < 1:
