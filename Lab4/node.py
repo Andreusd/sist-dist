@@ -3,33 +3,35 @@ from rpyc.utils.server import ThreadedServer
 
 
 def novo_processo(servidor: str, porta: int, indice: int, vizinhos: list):
-    origem = None  # o no raiz sempre tera raiz nula
+    pai = None  # o no raiz sempre tera pai '1'
     max_valor = 0  # armazena o maior valor entre os filhos
-    porta_maior = None
-    lider_eleito = None
-    valor_eleito = None
+    porta_maior = None  # armazena a porta do nó com maior valor
+    lider_eleito = None  # armazena o lider eleito para uso futuro da aplicação
 
-    class Node(rpyc.Service):
+    class Node(rpyc.Service):  # classe que implementa o RPC
         exposed_indice = indice
 
-        def exposed_probe(self, orig):
-            nonlocal origem  # referencia a variavel da funcao novo_processo
-            if(origem):
-                conn = rpyc.connect('localhost', orig)
+        def exposed_probe(self, origem):
+            nonlocal pai  # referencia a variavel da funcao novo_processo
+            if(pai):  # caso esse nó já tenha sido visitado anteriormente
+                conn = rpyc.connect('localhost', origem)
+                # enviamos ack para informar que ja foi visitado
                 conn.root.ack(porta)
                 return
-            origem = orig
+            pai = origem  # define o pai desse nó
             for vizinho in vizinhos:
-                if vizinho != origem:
+                if vizinho != pai:  # envia probe para todos os vizinhos exceto o pai
                     print(f"-> {porta}: visita {vizinho}")
                     conn = rpyc.connect('localhost', vizinho)
-                    conn.root.probe(porta)
-            if(orig != 1):
-                conn = rpyc.connect('localhost', origem)
+                    conn.root.probe(porta)  # envia probe para os vizinhos
+            if(origem != 1):  # se o nó não for a raiz, envia echo para o pai
+                conn = rpyc.connect('localhost', pai)
                 maior_valor = max(max_valor, indice)
+                # envia echo para o pai com o maior valor entre o proprio indice e o dos filhos
                 conn.root.echo(porta, maior_valor,
                                porta_maior if maior_valor == max_valor else porta)
             else:
+                # se o nó for raiz, notifica todos os nos do novo lider
                 maior_valor = max(max_valor, indice)
                 for vizinho in vizinhos:
                     conn = rpyc.connect('localhost', vizinho)
@@ -48,15 +50,13 @@ def novo_processo(servidor: str, porta: int, indice: int, vizinhos: list):
 
         def exposed_lider(self, lider_valor, lider_porta):
             nonlocal lider_eleito
-            nonlocal valor_eleito
             if(lider_eleito):
                 return
             lider_eleito = lider_porta
-            valor_eleito = lider_valor
             print(
-                f"-> {porta}: reconhece {lider_eleito} como lider com valor {valor_eleito}")
+                f"-> {porta}: reconhece {lider_eleito} como lider com valor {lider_valor}")
             for vizinho in vizinhos:
-                if vizinho != origem:
+                if vizinho != pai:
                     conn = rpyc.connect('localhost', vizinho)
                     conn.root.lider(lider_valor, lider_porta)
 

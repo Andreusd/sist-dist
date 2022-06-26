@@ -7,15 +7,16 @@ from node import novo_processo
 
 MAX_INDEX = 10000
 
-processos = []
+processos = []  # lista que armazena os processos que estão executando
 
 
-def carrega_configuracao() -> dict:
+def carrega_configuracao() -> dict:  # carrega o arquivo de configuração
     with open("configuracao.json", "r") as arquivo:
         return json.load(arquivo)
 
 
-def incia_node(porta: str, dados: dict):
+def incia_node(porta: str, dados: dict):  # inicia os nós
+    # escolhe o valor armazenado por cada nó (valor comparado)
     valor = random.randrange(MAX_INDEX)
     print(
         f"-> Iniciando node {porta} com vizinhos {dados['vizinhos']} no {dados['servidor']} com valor {valor}")
@@ -34,6 +35,7 @@ def main():
     while True:
         entrada = input()
         if entrada in nodes.keys():
+            # conecta com o nó que será a raiz para que ele inicie a eleição
             conn = rpyc.connect('localhost', entrada)
             conn.root.probe(1)  # probe(1) significa que o no é raiz
             break
@@ -41,7 +43,6 @@ def main():
             print("no invalido!")
     for p in processos:
         p.terminate()
-    print("terminei")
 
 
 if __name__ == '__main__':
