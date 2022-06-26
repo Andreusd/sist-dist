@@ -22,7 +22,7 @@ def novo_processo(host: str, porta: int, indice: int, vizinhos: list):
             pai = origem  # define o pai desse nó
             for vizinho in vizinhos:
                 if vizinho != pai:  # envia probe para todos os vizinhos exceto o pai
-                    print(f"-> {porta}: visita {vizinho[1]}")
+                    print(f"-> {porta}: probe {vizinho[1]}")
                     conn = rpyc.connect(vizinho[0], vizinho[1])
                     # envia probe para os vizinhos
                     conn.root.probe((host, porta))
@@ -41,7 +41,7 @@ def novo_processo(host: str, porta: int, indice: int, vizinhos: list):
                         maior_valor, porta_maior if maior_valor == max_valor else porta)
 
         def exposed_ack(self, filho):
-            print(f"-> {porta}: {filho} ja foi visitado anteriormente")
+            print(f"-> {porta}: ack {filho}")
 
         def exposed_echo(self, filho, maior_valor, maior_porta):
             print(f"-> {porta}: echo {filho} com valor {maior_valor}")
