@@ -1,13 +1,13 @@
 {
   "5000": {
-    "servidor": "localhost",
+    "host": "localhost",
     "vizinhos": [
       "5001",
       "5009"
     ]
   },
   "5001": {
-    "servidor": "localhost",
+    "host": "localhost",
     "vizinhos": [
       "5000",
       "5002",
@@ -15,7 +15,7 @@
     ]
   },
   "5002": {
-    "servidor": "localhost",
+    "host": "localhost",
     "vizinhos": [
       "5001",
       "5004",
@@ -23,7 +23,7 @@
     ]
   },
   "5003": {
-    "servidor": "localhost",
+    "host": "localhost",
     "vizinhos": [
       "5002",
       "5004",
@@ -31,7 +31,7 @@
     ]
   },
   "5004": {
-    "servidor": "localhost",
+    "host": "localhost",
     "vizinhos": [
       "5002",
       "5003",
@@ -40,7 +40,7 @@
     ]
   },
   "5005": {
-    "servidor": "localhost",
+    "host": "localhost",
     "vizinhos": [
       "5003",
       "5004",
@@ -48,7 +48,7 @@
     ]
   },
   "5006": {
-    "servidor": "localhost",
+    "host": "localhost",
     "vizinhos": [
       "5001",
       "5004",
@@ -57,21 +57,21 @@
     ]
   },
   "5007": {
-    "servidor": "localhost",
+    "host": "localhost",
     "vizinhos": [
       "5006",
       "5008"
     ]
   },
   "5008": {
-    "servidor": "localhost",
+    "host": "localhost",
     "vizinhos": [
       "5005",
       "5007"
     ]
   },
   "5009": {
-    "servidor": "localhost",
+    "host": "localhost",
     "vizinhos": [
       "5000",
       "5006"
