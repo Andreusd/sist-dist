@@ -1,0 +1,18 @@
+{
+  "1": {
+    "host": "localhost",
+    "porta": 5001
+  },
+  "2": {
+    "host": "localhost",
+    "porta": 5002
+  },
+  "3": {
+    "host": "localhost",
+    "porta": 5003
+  },
+  "4": {
+    "host": "localhost",
+    "porta": 5004
+  }
+}
