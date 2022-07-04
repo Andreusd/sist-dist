@@ -72,6 +72,8 @@ def inicia_rpc():  # inicia a porta para os pares se conectarem
             global valor_X
             valor_X = valor
             imprime_debug(f"{identificador} -> O novo valor de X e {valor_X}")
+            global historico
+            historico.append((remetente, valor))
             conn = rpyc.connect(
                 configuracao[remetente]['host'], configuracao[remetente]['porta'])
             # callback para a copia primaria avisando que o valor foi atualizado com sucesso
