@@ -5,13 +5,13 @@ import rpyc
 from rpyc.utils.server import ThreadedServer
 import threading
 
-DEBUG = True
+DEBUG = True  # ativa modo de debug
 
-identificador = None
-configuracao = None
-valor_X = 0
-historico = []
-dono_token = '1'
+identificador = None  # identificador do proprio no
+configuracao = None  # estrutura com os endereco dos pares
+valor_X = 0  # valor local da variavel X
+historico = []  # historico local de atualizacao da variavel X
+dono_token = '1'  # armazena o dono do token (padrao = 1)
 
 
 def imprime_debug(mensagem):
@@ -19,7 +19,7 @@ def imprime_debug(mensagem):
         print(mensagem)
 
 
-def carrega_configuracao() -> dict:
+def carrega_configuracao() -> dict:  # funcao que carrega a configuracao do arquivo
     with open('configuracao.json', 'r') as arquivo:
         return json.load(arquivo)
 
@@ -44,46 +44,57 @@ def inicia():
     ''')
 
 
-def inicia_rpyc():
-    class Node(rpyc.Service):
+def inicia_rpc():  # inicia a porta para os pares se conectarem
+    class Node(rpyc.Service):  # classe que implementa o rpc
+        # funcao que solicita o token para o dono do token
         def exposed_pega_token(self, remetente):
             global dono_token
             dono_token = remetente
             imprime_debug(
                 f"{identificador} -> O novo dono do token e {dono_token}")
+            # avisa a todos sobre o novo dono (inclusive o proprio novo dono)
             for vizinho in configuracao:
-                if vizinho != identificador:
+                if vizinho != identificador:  # para evitar uma conexao desnecessaria ja defini o novo dono anteriormente
                     conn = rpyc.connect(
-                        configuracao[vizinho]['host'], configuracao[vizinho]['porta'])
+                        configuracao[vizinho]['host'], configuracao[vizinho]['porta'])  # conecta com o vizinho
+                    # avisa a todos sobre o novo dono
                     conn.root.define_novo_dono(remetente)
 
+        # funcao que avisa a todos sobre o novo dono
         def exposed_define_novo_dono(self, remetente):
             global dono_token
             dono_token = remetente
             imprime_debug(
                 f"{identificador} -> O novo dono do token e {dono_token}")
 
+        # funcao que atualiza o valor da variavel X apos ela ser atualizada na copia primaria
         def exposed_atualiza_X(self, remetente, valor):
             global valor_X
             valor_X = valor
             imprime_debug(f"{identificador} -> O novo valor de X e {valor_X}")
             conn = rpyc.connect(
                 configuracao[remetente]['host'], configuracao[remetente]['porta'])
+            # callback para a copia primaria avisando que o valor foi atualizado com sucesso
             conn.root.reconhece_X(identificador, valor)
 
+        # funcao ativada pelo callback
         def exposed_reconhece_X(self, remetente, valor):
             imprime_debug(
                 f"{identificador} -> O par {remetente} reconhece {valor} como o novo valor de X")
+
     node = ThreadedServer(Node, port=configuracao[identificador]['porta'])
     threading.Thread(target=node.start).start()
 
 
-def atualiza_valor(valores):
+def atualiza_valor(valores):  # escreve sequencialmente valores na variavel X
+    # converte os valores digitados para inteiros
+    valores = [int(valor) for valor in valores]
     if dono_token != identificador:
         conn = rpyc.connect(
             configuracao[dono_token]['host'], configuracao[dono_token]['porta'])
+        # solicita a posse do token para o dono
         conn.root.pega_token(identificador)
-    if dono_token == identificador:
+    if dono_token == identificador:  # verifica se o token pertence ao proprio
         global valor_X
         global historico
         for valor in valores:
@@ -94,6 +105,7 @@ def atualiza_valor(valores):
             if vizinho != identificador:
                 conn = rpyc.connect(
                     configuracao[vizinho]['host'], configuracao[vizinho]['porta'])
+                # publica o valor de X para os vizinhos
                 conn.root.atualiza_X(identificador, valor_X)
 
 
@@ -115,7 +127,7 @@ def atende_requisicoes():
 
 def main():
     inicia()
-    inicia_rpyc()
+    inicia_rpc()
     try:
         atende_requisicoes()
     except Exception as e:
